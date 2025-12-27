@@ -1,0 +1,72 @@
+name: Build and Release CLI (Linux aarch64)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-aarch64:
+    runs-on: ubuntu-latest
+    name: Build on Linux aarch64
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build on aarch64
+        uses: uraimo/run-on-arch-action@v2
+        id: build
+        with:
+          arch: aarch64
+          distro: ubuntu22.04
+          
+          # Cài đặt các gói hệ thống cần thiết TRONG môi trường aarch64
+          install: |
+            apt-get update
+            apt-get install -y python3 python3-pip python3-dev patchelf gcc git
+          
+          # Chạy script biên dịch
+          run: |
+            chmod +x compile.sh
+            ./compile.sh
+            
+      - name: Verify build output
+        run: |
+          if [ ! -f "build/LpkUnpacker" ]; then
+            echo "Build failed: LpkUnpacker binary not found"
+            exit 1
+          fi
+          FILE_SIZE=$(du -h build/LpkUnpacker | cut -f1)
+          echo "Build successful! File size: $FILE_SIZE"
+
+      - name: Get version from tag
+        id: get_version
+        run: |
+          echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Prepare Release Notes
+        id: release_notes
+        run: |
+          VERSION="${{ steps.get_version.outputs.VERSION }}"
+          BUILD_DATE=$(date '+%Y-%m-%d %H:%M:%S')
+          cat <<EOF > RELEASE_NOTES.md
+          ## Release $VERSION (Linux aarch64 CLI)
+          
+          **Build Date:** $BUILD_DATE
+          **Platform:** Linux aarch64 (ARM64)
+          **Type:** CLI
+          
+          ### Changes
+          - Automated build for Linux ARM64.
+          EOF
+
+      - name: Create Release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ steps.get_version.outputs.VERSION }}
+          name: Release ${{ steps.get_version.outputs.VERSION }} (Linux aarch64)
+          bodyFile: RELEASE_NOTES.md
+          artifacts: build/LpkUnpacker
+          artifactContentType: application/octet-stream
+          draft: true
+          prerelease: false
+          token: ${{ secrets.GITHUB_TOKEN }}
