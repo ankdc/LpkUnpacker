@@ -1,14 +1,11 @@
-name: Build and Release
+name: Build and Release CLI (Linux)
 
 on:
-  push:
-    tags:
-      - 'v*'  # Trigger when pushing tags like v1.0.0
-  workflow_dispatch:  # Allow manual trigger
+  workflow_dispatch:  # Cho phép chạy thủ công
 
 jobs:
   build:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     
     steps:
     - name: Checkout code
@@ -22,10 +19,10 @@ jobs:
     
     - name: Install system dependencies
       run: |
-        # Install Visual C++ build tools components if needed
-        Write-Host "Python version:"
+        echo "Installing Linux build dependencies..."
+        sudo apt-get update
+        sudo apt-get install -y patchelf gcc
         python --version
-        Write-Host "Pip version:"
         pip --version
     
     - name: Install dependencies
@@ -37,53 +34,54 @@ jobs:
     - name: Cache Nuitka downloads
       uses: actions/cache@v4
       with:
-        path: ~\AppData\Local\Nuitka
+        path: ~/.cache/Nuitka
         key: nuitka-cache-${{ runner.os }}-${{ hashFiles('**/requirements.txt') }}
         restore-keys: |
           nuitka-cache-${{ runner.os }}-
     
     - name: Build executable with Nuitka
       run: |
-        .\compile.bat
-      shell: cmd
+        # Cấp quyền thực thi và chạy script biên dịch
+        chmod +x compile.sh
+        ./compile.sh
       
     - name: Verify build output
       run: |
-        if (-Not (Test-Path "build/LpkUnpackerGUI.exe")) {
-          Write-Error "Build failed: LpkUnpackerGUI.exe not found"
+        if [ ! -f "build/LpkUnpacker" ]; then
+          echo "Build failed: LpkUnpacker binary not found"
           exit 1
-        }
-        $fileSize = (Get-Item "build/LpkUnpackerGUI.exe").Length / 1MB
-        Write-Host "Build successful! File size: $fileSize MB"
+        fi
+        FILE_SIZE=$(du -h build/LpkUnpacker | cut -f1)
+        echo "Build successful! File size: $FILE_SIZE"
     
     - name: Get version from tag
       id: get_version
       run: |
-        $tag = "${{ github.ref }}" -replace 'refs/tags/', ''
-        echo "VERSION=$tag" >> $env:GITHUB_OUTPUT
+        echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
     
     - name: Prepare Release Notes
       id: release_notes
       run: |
-        $version = "${{ steps.get_version.outputs.VERSION }}"
-        $buildDate = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        $notes = @"
-        ## Release $version
+        VERSION="${{ steps.get_version.outputs.VERSION }}"
+        BUILD_DATE=$(date '+%Y-%m-%d %H:%M:%S')
+        cat <<EOF > RELEASE_NOTES.md
+        ## Release $VERSION (Linux CLI)
         
-        **Build Date:** $buildDate
+        **Build Date:** $BUILD_DATE
+        **Platform:** Linux x64
+        **Type:** CLI (Command Line Interface)
         
-        ### Features
-        - ...
-        "@
-        $notes | Out-File -FilePath RELEASE_NOTES.md -Encoding UTF8
+        ### Changes
+        - Automated build for Linux CLI.
+        EOF
     
     - name: Create Release
       uses: ncipollo/release-action@v1
       with:
         tag: ${{ steps.get_version.outputs.VERSION }}
-        name: Release ${{ steps.get_version.outputs.VERSION }}
+        name: Release ${{ steps.get_version.outputs.VERSION }} (Linux CLI)
         bodyFile: RELEASE_NOTES.md
-        artifacts: build/LpkUnpackerGUI.exe
+        artifacts: build/LpkUnpacker
         artifactContentType: application/octet-stream
         draft: true
         prerelease: false
