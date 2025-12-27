@@ -26,8 +26,8 @@ jobs:
           
           # Chạy script biên dịch
           run: |
-            chmod +x compile.sh
-            ./compile.sh
+            chmod +x compile-arm.sh
+            ./compile-arm.sh
             
       - name: Verify build output
         run: |
