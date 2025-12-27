@@ -15,7 +15,7 @@ fi
 
 echo "Using Python: $RUN_PY"
 
-# Tạo thư mục build trước để tránh lỗi đường dẫn
+# Tạo thư mục build
 mkdir -p build
 
 # Cài đặt dependency nếu thiếu
@@ -27,11 +27,12 @@ fi
 
 echo "Compiling application with Nuitka..."
 
-# Lệnh biên dịch chính
-# -o build/LpkUnpacker: Bắt buộc xuất file ra thư mục build với tên LpkUnpacker
+# --- SỬA LỖI Ở ĐÂY ---
+# Đã có --output-dir=build thì -o chỉ cần ghi tên file (LpkUnpacker)
+# Nuitka sẽ tự động đặt nó vào build/LpkUnpacker
 $RUN_PY -m nuitka --onefile \
     --output-dir=build \
-    -o build/LpkUnpacker \
+    -o LpkUnpacker \
     --jobs=$(nproc) \
     --lto=no \
     --show-progress \
@@ -42,17 +43,14 @@ $RUN_PY -m nuitka --onefile \
     --remove-output \
     LpkUnpacker.py
 
-# Kiểm tra kết quả thực tế
+# Kiểm tra kết quả
 if [ -f "build/LpkUnpacker" ]; then
     echo "Compilation completed successfully!"
     echo "Executable is located at: build/LpkUnpacker"
     ls -lh build/LpkUnpacker
 else
     echo "Compilation failed or file not found in build/ directory."
-    # List file ra để debug xem nó nằm ở đâu
-    echo "Listing current directory:"
-    ls -la
-    echo "Listing build directory:"
+    echo "Listing build directory contents:"
     ls -la build/
     exit 1
 fi
