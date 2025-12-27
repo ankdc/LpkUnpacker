@@ -1,81 +1,57 @@
-@echo off
-setlocal
-REM ===== LpkUnpackerGUI Compiler =====
-echo ===== LpkUnpackerGUI Compiler =====
-echo Starting compilation process...
+#!/bin/bash
 
-set "SCRIPT_DIR=%~dp0"
-set "RUN_PY="
-set "RUN_PY_IS_CMD=0"
-set "DESC="
-set "CONSOLE_MODE=disable"
+echo "===== LpkUnpacker CLI Compiler (Linux) ====="
+echo "Starting compilation process..."
 
-REM Enable console when DEBUG=1 for troubleshooting black screen
-if /I "%DEBUG%"=="1" (
-    set "CONSOLE_MODE=attach"
-    set "QT_DEBUG_PLUGINS=1"
-)
+# Xác định lệnh python
+if command -v python3 &> /dev/null; then
+    RUN_PY="python3"
+elif command -v python &> /dev/null; then
+    RUN_PY="python"
+else
+    echo "Error: Python not found."
+    exit 1
+fi
 
-set "RUN_PY=python"
-set "RUN_PY_IS_CMD=0"
-set "DESC=Global Python"
+echo "Using Python: $RUN_PY"
 
-echo Using Python: %DESC%
+# Kiểm tra Nuitka
+$RUN_PY -c "import nuitka" > /dev/null 2>&1
+if [ $? -ne 0 ]; then
+    echo "Error: Nuitka not found. Please install: pip install nuitka"
+    exit 1
+fi
 
-REM Basic check: Python availability
-%RUN_PY% -V >nul 2>&1
-if %ERRORLEVEL% neq 0 (
-    echo Error: Selected Python command failed: %RUN_PY%
-    exit /b 1
-)
+# Đảm bảo các thư viện runtime cần thiết đã được cài đặt
+$RUN_PY -c "import websockets, requests" > /dev/null 2>&1
+if [ $? -ne 0 ]; then
+    echo "Missing packages detected. Installing: websockets, requests"
+    $RUN_PY -m pip install websockets requests
+fi
 
-REM Check Nuitka is installed in the selected environment
-%RUN_PY% -c "import nuitka" >nul 2>&1
-if %ERRORLEVEL% neq 0 (
-    echo Error: Nuitka not found in the selected environment.
-    echo Please install Nuitka:
-    echo - Conda:   conda install -n %ENV_NAME% -c conda-forge nuitka
-    echo - venv:    %ENV_NAME%\Scripts\pip install nuitka
-    echo - global:  pip install nuitka
-    exit /b 1
-)
+echo "Compiling application with Nuitka..."
 
-REM Ensure websockets and requests are installed (as per runtime requirements)
-%RUN_PY% -c "import websockets, requests" >nul 2>&1
-if %ERRORLEVEL% neq 0 (
-    echo Missing packages detected. Installing: websockets, requests
-    %RUN_PY% -m pip install websockets requests
-)
+# Lệnh biên dịch chính
+# - Target: LpkUnpacker.py (CLI)
+# - Loại bỏ plugin pyqt5
+# - Loại bỏ các flag windows
+$RUN_PY -m nuitka --onefile \
+    --output-dir=build \
+    --jobs=$(nproc) \
+    --lto=no \
+    --show-progress \
+    --nofollow-import-to=matplotlib,scipy,pandas,tkinter \
+    --python-flag=no_site \
+    --python-flag=no_docstrings \
+    --assume-yes-for-downloads \
+    --remove-output \
+    LpkUnpacker.py
 
-echo Compiling application with Nuitka using %DESC%...
-echo This may take several minutes. Please be patient...
+if [ $? -ne 0 ]; then
+    echo "Compilation failed."
+    exit 1
+fi
 
-REM Main compilation command
-if "%RUN_PY_IS_CMD%"=="0" (
-    %RUN_PY% -m nuitka --onefile ^
-        --enable-plugin=pyqt5 ^
-        --output-dir=build ^
-        --windows-console-mode=%CONSOLE_MODE% ^
-        --jobs=%NUMBER_OF_PROCESSORS% ^
-        --lto=no ^
-        --show-progress ^
-        --include-data-dir=./GUI/assets=GUI/assets ^
-        --include-data-dir=./Img=Img ^
-        --windows-icon-from-ico=Img/icon.ico ^
-        --nofollow-import-to=matplotlib,scipy,pandas,tkinter ^
-        --python-flag=no_site ^
-        --python-flag=no_docstrings ^
-        --assume-yes-for-downloads ^
-        --remove-output ^
-        LpkUnpackerGUI.py
-)
-
-if %ERRORLEVEL% neq 0 (
-    echo Compilation failed with error code %ERRORLEVEL%.
-    exit /b %ERRORLEVEL%
-)
-
-echo.
-echo Compilation completed successfully!
-echo Executable can be found in the 'build' directory.
-echo.
+echo ""
+echo "Compilation completed successfully!"
+echo "Executable can be found in the 'build' directory: build/LpkUnpacker"
