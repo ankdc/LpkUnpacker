@@ -15,28 +15,23 @@ fi
 
 echo "Using Python: $RUN_PY"
 
-# Kiểm tra Nuitka
+# Tạo thư mục build trước để tránh lỗi đường dẫn
+mkdir -p build
+
+# Cài đặt dependency nếu thiếu
 $RUN_PY -c "import nuitka" > /dev/null 2>&1
 if [ $? -ne 0 ]; then
-    echo "Error: Nuitka not found. Please install: pip install nuitka"
-    exit 1
-fi
-
-# Đảm bảo các thư viện runtime cần thiết đã được cài đặt
-$RUN_PY -c "import websockets, requests" > /dev/null 2>&1
-if [ $? -ne 0 ]; then
-    echo "Missing packages detected. Installing: websockets, requests"
-    $RUN_PY -m pip install websockets requests
+    echo "Installing Nuitka..."
+    $RUN_PY -m pip install nuitka
 fi
 
 echo "Compiling application with Nuitka..."
 
 # Lệnh biên dịch chính
-# - Target: LpkUnpacker.py (CLI)
-# - Loại bỏ plugin pyqt5
-# - Loại bỏ các flag windows
+# -o build/LpkUnpacker: Bắt buộc xuất file ra thư mục build với tên LpkUnpacker
 $RUN_PY -m nuitka --onefile \
     --output-dir=build \
+    -o build/LpkUnpacker \
     --jobs=$(nproc) \
     --lto=no \
     --show-progress \
@@ -47,11 +42,17 @@ $RUN_PY -m nuitka --onefile \
     --remove-output \
     LpkUnpacker.py
 
-if [ $? -ne 0 ]; then
-    echo "Compilation failed."
+# Kiểm tra kết quả thực tế
+if [ -f "build/LpkUnpacker" ]; then
+    echo "Compilation completed successfully!"
+    echo "Executable is located at: build/LpkUnpacker"
+    ls -lh build/LpkUnpacker
+else
+    echo "Compilation failed or file not found in build/ directory."
+    # List file ra để debug xem nó nằm ở đâu
+    echo "Listing current directory:"
+    ls -la
+    echo "Listing build directory:"
+    ls -la build/
     exit 1
 fi
-
-echo ""
-echo "Compilation completed successfully!"
-echo "Executable can be found in the 'build' directory: build/LpkUnpacker"
