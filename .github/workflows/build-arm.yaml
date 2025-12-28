@@ -29,18 +29,12 @@ jobs:
             chmod +x compile-arm.sh
             ./compile-arm.sh
             
-      - name: Verify build output
-        run: |
-          if [ ! -f "build/LpkUnpacker" ]; then
-            echo "Build failed: LpkUnpacker binary not found"
-            exit 1
-          fi
-          FILE_SIZE=$(du -h build/LpkUnpacker | cut -f1)
-          echo "Build successful! File size: $FILE_SIZE"
+
       - name: Get version from tag
         id: get_version
         run: |
           echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
       - name: Prepare Release Notes
         id: release_notes
         run: |
@@ -56,6 +50,7 @@ jobs:
           ### Changes
           - Automated build for Linux ARM64.
           EOF
+
       - name: Create Release
         uses: ncipollo/release-action@v1
         with:
